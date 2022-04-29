@@ -43,8 +43,8 @@ class GPUActor:
     def __init__(self):
         print("ray.get_gpu_ids(): {}".format(ray.get_gpu_ids()))
         print("CUDA_VISIBLE_DEVICES: {}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
-        self.tensor = None
 
+        self.tensor = None
         self.key = random.PRNGKey(0)
 
     def create(self, size) -> ray.ObjectRef:
@@ -65,4 +65,6 @@ a1 = GPUActor.options(name="GPU_0").remote()
 a2 = GPUActor.options(name="GPU_1").remote()
 
 a1.create.remote(5000)
+start = time.time()
 ray.get(a1.send.remote("GPU_1"))
+print(f"Time taken: {(time.time() - start) * 1000} ms")
