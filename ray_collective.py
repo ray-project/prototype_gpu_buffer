@@ -1,21 +1,24 @@
-import ray
-import ray.util.collective as collective
+
+import time
 
 import cupy as cp
 from cupy.cuda import Device
 
+import ray
+import ray.util.collective as collective
+
 
 @ray.remote(num_gpus=2)
 class Worker:
-   def __init__(self):
+   def __init__(self, size=4):
        with Device(0):
-           self.send1 = cp.ones((4, ), dtype=cp.float32)
+           self.send1 = cp.ones((size, size), dtype=cp.float32)
        with Device(1):
-           self.send2 = cp.ones((4, ), dtype=cp.float32) * 2
+           self.send2 = cp.ones((size, size), dtype=cp.float32) * 2
        with Device(0):
-           self.recv1 = cp.ones((4, ), dtype=cp.float32)
+           self.recv1 = cp.ones((size, size), dtype=cp.float32)
        with Device(1):
-           self.recv2 = cp.ones((4, ), dtype=cp.float32) * 2
+           self.recv2 = cp.ones((size, size), dtype=cp.float32) * 2
 
    def setup(self, world_size, rank):
        self.rank = rank
@@ -38,12 +41,16 @@ num_workers = 2
 workers = []
 init_rets = []
 for i in range(num_workers):
-   w = Worker.remote()
+   w = Worker.remote(size=5000)
    workers.append(w)
    init_rets.append(w.setup.remote(num_workers, i))
 a = ray.get(init_rets)
 print(a)
+
+start = time.time()
 results = ray.get([w.allreduce_call.remote() for w in workers])
-print(results)
+print(f"allreduce_call time: {(time.time() - start) * 1000} ms.")
+
+start = time.time()
 results = ray.get([w.p2p_call.remote() for w in workers])
-print(results)
+print(f"p2p_call time: {(time.time() - start) * 1000} ms.")
