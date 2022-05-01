@@ -53,3 +53,14 @@ print(f"Ray.get with allreduce_call time: {(time.time() - start) * 1000} ms.")
 
 # 10 x 10 tensor    - 1270.2579498291016 ms.
 # 10k x 10k tensor  - 1279.3364524841309 ms. (+9ms)
+
+
+# ============ All reduce with 2 GPU on 2 workers ============
+
+# C = Worker.remote()
+# D = Worker.remote()
+# collective.create_collective_group([C, D], 2, [0,1], group_name="allreduce")
+
+# start = time.time()
+# ray.get([C.do_allreduce.remote(), D.do_allreduce.remote()])
+# print(f"Pair allreduce time: {(time.time() - start) * 1000} ms.")
