@@ -12,14 +12,19 @@ import ray
 @ray.remote(num_gpus=1)
 class Worker:
     def __init__(self, size=10000):
+        self.size = size
         self.tensor = cp.random.rand(size, size, dtype=cp.float32)
-        self.buffer = cp.zeros((size, size), dtype=cp.float32)
+        self.buffer = cp.random.rand(size, size, dtype=cp.float32)
 
     def get_tensor(self):
         return self.tensor
 
     def get_buffer(self):
         return self.buffer
+
+    def re_init_tensors(self):
+        self.tensor = cp.random.rand(self.size, self.size, dtype=cp.float32)
+        self.buffer = cp.random.rand(self.size, self.size, dtype=cp.float32)
 
     def send_ray_object_store(self, target_rank=0):
         obj_ref = ray.put(self.tensor)
@@ -31,29 +36,33 @@ class Worker:
 
 TENSOR_SIZE = 20000
 NUM_RUNS = 10
-def run():
+def run(stats, num_runs=NUM_RUNS):
     # Create two actors
     A = Worker.remote(size=TENSOR_SIZE)
     B = Worker.remote(size=TENSOR_SIZE)
 
-    start = time.time()
+    # Warm up
     obj_ref = A.send_ray_object_store.remote()
     ray.get(B.recv_ray_object_store.remote(obj_ref))
-    time_diff_ms = (time.time() - start) * 1000
-    print(f"Pair ray object store send-recv time: {time_diff_ms} ms.")
 
-    return time_diff_ms
+    for _ in range(num_runs):
+        start = time.time()
+        obj_ref = A.send_ray_object_store.remote()
+        ray.get(B.recv_ray_object_store.remote(obj_ref))
+        time_diff_ms = (time.time() - start) * 1000
+        print(f"Pair ray object store send-recv time: {time_diff_ms} ms.")
+        stats.append(time_diff_ms)
+        # Re-initialize value of tensors
+        ray.get([A.re_init_tensors.remote(), B.re_init_tensors.remote()])
 
 # Warm up
-run()
 stats = []
-for _ in range(NUM_RUNS):
-    stats.append(run())
+run(stats, num_runs=NUM_RUNS)
 
 mean = round(np.mean(stats), 2)
 std = round(np.std(stats), 2)
 print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {mean}, std_ms: {std}, num_runs: {NUM_RUNS}")
-# 2D Tensor dim: 20000, mean_ms: 3867.72, std_ms: 64.1, num_runs: 10
+# 2D Tensor dim: 20000, mean_ms: 1158.99, std_ms: 101.02, num_runs: 10
 
 
 # ============== Scratch pad =============
