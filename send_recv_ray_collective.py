@@ -15,7 +15,7 @@ import ray.util.collective as collective
 class Worker:
     def __init__(self, size=10000):
         self.tensor = cp.random.rand(size, size, dtype=cp.float32)
-        self.buffer = cp.random.rand(size, size, dtype=cp.float32)
+        self.buffer = cp.zeros((size, size), dtype=cp.float32)
 
     def get_tensor(self):
         return self.tensor
@@ -39,8 +39,10 @@ class Worker:
     def destroy_collective_group(self, group_name="send_recv"):
         collective.destroy_collective_group(group_name=group_name)
 
+TENSOR_SIZE = 20000
+NUM_RUNS = 10
+
 def run():
-    TENSOR_SIZE = 10000
     # Create two actors
     A = Worker.remote(size=TENSOR_SIZE)
     B = Worker.remote(size=TENSOR_SIZE)
@@ -61,11 +63,10 @@ def run():
 # Warm up
 run()
 stats = []
-NUM_RUNS = 10
 for _ in range(NUM_RUNS):
     stats.append(run())
 
 mean = round(np.mean(stats), 2)
 std = round(np.std(stats), 2)
-print(f"num_runs: {NUM_RUNS}, mean_ms: {mean}, " f"std_ms: {std}")
-# mean_ms: 2120.09, std_ms: 15.75
+print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {mean}, std_ms: {std}, num_runs: {NUM_RUNS}")
+# 2D Tensor dim: 20000, mean_ms: 2177.33, std_ms: 29.23, num_runs: 10

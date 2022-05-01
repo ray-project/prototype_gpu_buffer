@@ -13,7 +13,7 @@ import ray
 class Worker:
     def __init__(self, size=10000):
         self.tensor = cp.random.rand(size, size, dtype=cp.float32)
-        self.buffer = cp.random.rand(size, size, dtype=cp.float32)
+        self.buffer = cp.zeros((size, size), dtype=cp.float32)
 
     def get_tensor(self):
         return self.tensor
@@ -29,7 +29,7 @@ class Worker:
         self.buffer = ray.get(obj_ref)
 
 
-TENSOR_SIZE = 10000
+TENSOR_SIZE = 20000
 NUM_RUNS = 10
 def run():
     # Create two actors
@@ -53,7 +53,7 @@ for _ in range(NUM_RUNS):
 mean = round(np.mean(stats), 2)
 std = round(np.std(stats), 2)
 print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {mean}, std_ms: {std}, num_runs: {NUM_RUNS}")
-# (10k,10k) num_runs: 10, mean_ms: 2179.12, std_ms: 35.46
+# 2D Tensor dim: 20000, mean_ms: 3867.72, std_ms: 64.1, num_runs: 10
 
 
 # ============== Scratch pad =============
