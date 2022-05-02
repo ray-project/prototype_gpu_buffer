@@ -14,6 +14,9 @@ class GPUObjectRef:
         self.size = size
         self.dtype = dtype
 
+    def __str__(self):
+        return f"{self.__dict__}"
+
 @ray.remote(num_gpus=0.1, num_cpus=1)
 class GPUObjectManager:
     """Coordinate a list of GPUDeviceActor(s)"""
@@ -60,10 +63,11 @@ class GPUObjectManager:
         return gpu_obj_ref
 
     def get(self, gpu_object_ref):
-
+        print(f">>>>> Calling get on gpu_object_ref: {gpu_object_ref}")
         src_worker_rank = gpu_object_ref.location_rank
         dst_worker_rank = 1
-
+        print(f">>>>> src_worker_rank: {src_worker_rank}")
+        print(f">>>>> dst_worker_rank: {dst_worker_rank}")
         return ray.get([
             self.workers[src_worker_rank].send.remote(dst_worker_rank),
             self.workers[dst_worker_rank].recv.remote(src_worker_rank)
@@ -83,6 +87,7 @@ class GPUObjectManager:
 @ray.remote(num_gpus=1)
 class GPUDeviceActor:
     def __init__(self, collective_group_name):
+        # Put some dummy data
         self.data = cp.random.rand(1, 1, dtype=cp.float32)
         self.data_buffer = cp.random.rand(1, 1, dtype=cp.float32)
         self.collective_group_name = collective_group_name
@@ -101,7 +106,7 @@ class GPUDeviceActor:
             self.data_buffer, src_rank, group_name=self.collective_group_name
         )
 
-TENSOR_SIZE = 100
+TENSOR_SIZE = 20000
 
 gpu_obj_manager = GPUObjectManager.remote(collective_group_name="send_recv")
 ray.get(gpu_obj_manager.init_gpu_actor_group.remote())
@@ -112,9 +117,10 @@ tensor = cp.random.rand(TENSOR_SIZE, TENSOR_SIZE, dtype=cp.float32)
 # def gpu_task():
 
 # This can be pushed to ray level and become ray.put(tensor) / ray.get(ref)
-start = time.time()
 obj_ref = gpu_obj_manager.put.remote(tensor)
-gpu_obj_manager.get.remote(obj_ref)
+
+start = time.time()
+ray.get(gpu_obj_manager.get.remote(obj_ref))
 time_diff_ms = (time.time() - start) * 1000
 print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {time_diff_ms}")
 
