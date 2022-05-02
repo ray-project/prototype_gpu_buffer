@@ -1,5 +1,6 @@
 import uuid
 import cupy as cp
+import numpy as np
 import time
 
 import ray
@@ -63,16 +64,16 @@ class GPUObjectManager:
         return gpu_obj_ref
 
     def get(self, gpu_object_ref):
-        print(f">>>>> Calling get on gpu_object_ref: {gpu_object_ref}")
+        # print(f">>>>> Calling get on gpu_object_ref: {gpu_object_ref}")
         src_worker_rank = gpu_object_ref.location_rank
         dst_worker_rank = 1
-        print(f">>>>> src_worker_rank: {src_worker_rank}")
-        print(f">>>>> dst_worker_rank: {dst_worker_rank}")
+        # print(f">>>>> src_worker_rank: {src_worker_rank}")
+        # print(f">>>>> dst_worker_rank: {dst_worker_rank}")
+
         return ray.get([
             self.workers[src_worker_rank].send.remote(dst_worker_rank),
             self.workers[dst_worker_rank].recv.remote(src_worker_rank)
         ])
-
 
     def collective_pattern_match(self):
         """Identify and map to advanced collective patterns, ex: AllReduce
@@ -107,23 +108,34 @@ class GPUDeviceActor:
         )
 
 TENSOR_SIZE = 20000
+NUM_RUNS = 10
 
-gpu_obj_manager = GPUObjectManager.remote(collective_group_name="send_recv")
-ray.get(gpu_obj_manager.init_gpu_actor_group.remote())
+def run(stats, num_runs=NUM_RUNS):
+    gpu_obj_manager = GPUObjectManager.remote(collective_group_name="send_recv")
+    ray.get(gpu_obj_manager.init_gpu_actor_group.remote())
 
-tensor = cp.random.rand(TENSOR_SIZE, TENSOR_SIZE, dtype=cp.float32)
+    tensor = cp.random.rand(TENSOR_SIZE, TENSOR_SIZE, dtype=cp.float32)
 
-# @ray.remote
-# def gpu_task():
+    # This can be pushed to ray level and become ray.put(tensor) / ray.get(ref)
+    obj_ref = gpu_obj_manager.put.remote(tensor)
 
-# This can be pushed to ray level and become ray.put(tensor) / ray.get(ref)
-obj_ref = gpu_obj_manager.put.remote(tensor)
+    start = time.time()
+    ray.get(gpu_obj_manager.get.remote(obj_ref))
+    time_diff_ms = (time.time() - start) * 1000
+    print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {time_diff_ms}")
+    for _ in range(num_runs):
+        start = time.time()
+        ray.get(gpu_obj_manager.get.remote(obj_ref))
+        time_diff_ms = (time.time() - start) * 1000
+        print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {time_diff_ms}")
+        stats.append(time_diff_ms)
 
-start = time.time()
-ray.get(gpu_obj_manager.get.remote(obj_ref))
-time_diff_ms = (time.time() - start) * 1000
-print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {time_diff_ms}")
-
+stats = []
+run(stats, num_runs=NUM_RUNS)
+mean = round(np.mean(stats), 2)
+std = round(np.std(stats), 2)
+print(f"2D Tensor dim: {TENSOR_SIZE}, mean_ms: {mean}, std_ms: {std}, num_runs: {NUM_RUNS}")
+# 2D Tensor dim: 20000, mean_ms: 2.94, std_ms: 0.75, num_runs: 10
 
 # 1 - Create a tensor and put it on a GPU, return ref
 # 2 - Pass that ref to another worker that needs it
