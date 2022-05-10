@@ -1,5 +1,5 @@
 import uuid
-import cupy as cp
+import numpy as cp
 import ray
 import uuid
 from ray import ObjectRef
@@ -22,13 +22,13 @@ class GpuActorBase:
         self.group = group
 
     def put_gpu_buffer(self, object) -> GpuObjectRef:
-        ref = GpuObjectRef(ray.put(object.get()), self.group)
+        ref = GpuObjectRef(ray.put(object), self.group)
         return ref
 
     def get_gpu_buffer(self, ref: GpuObjectRef):
         assert self.group == ref.group, f"{self.group} is different from {ref.group}"
         numpy_obj = ray.get(ref.id)
-        return cp.asarray(numpy_obj)
+        return numpy_obj
 
 
 def setup_transfer_group(actors):

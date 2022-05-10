@@ -1,11 +1,11 @@
-import cupy as cp
+import numpy as cp
 import ray
 #from gpu_object_ref import GpuObjectRef
 #from gpu_object_manager import GpuActorBase, setup_transfer_group
 from mock import GpuObjectRef
 from mock import GpuActorBase, setup_transfer_group
 
-@ray.remote(num_gpus=1)
+@ray.remote(num_cpus=1)
 class GpuActor(GpuActorBase):
     """Example class for gpu transfer."""
 
@@ -19,8 +19,8 @@ class GpuActor(GpuActorBase):
 
 
 if __name__ == "__main__":
-    sender_actor = GpuActor.options(num_gpus=1).remote()
-    receiver_actor = GpuActor.options(num_gpus=1).remote()
+    sender_actor = GpuActor.options(num_cpus=1).remote()
+    receiver_actor = GpuActor.options(num_cpus=1).remote()
     setup_transfer_group([sender_actor, receiver_actor])
 
     for _ in range(10):
